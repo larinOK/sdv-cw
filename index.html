@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SDV Assessment</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <link rel="stylesheet" href="popup.css">
+  <link rel="stylesheet" href="dropdownContainer.css">
+  <script src="https://jsuites.net/v4/jsuites.js"></script>
+  <link rel="stylesheet" href="https://jsuites.net/v4/jsuites.css" type="text/css" />
+
+
+</head>
+<body>
+<!-- Container for the chart -->
+<div id="container">
+  <select id="dropdown" name="dropdown"></select>
+
+  <input id='calendar' />
+
+  <button id="animateButton">Animate</button>
+
+
+
+  <select id="dropdown1" name="dropdown1">
+  </select>
+
+
+  <select id="dropdown2" name="dropdown2">
+  </select>
+
+  <!-- Container for the chart -->
+  <div id="chart-container"></div>
+
+  <div id="data-process">
+    <h3>Data Processing:</h3>
+    <p>The data was processes as follows:
+      The daily percent change in closing price is calculated for the 5 years provided in the dataset. Then for each stock except DWDP(not enough data) and for everyday Spearman's correlation coefficient is calculated for every other stock. The coefficients are then normalised to a range from 1 to
+10      Companies are grouped into sectors based on research into business activities and companies most similar to. Graph code inspired by <a href="https://observablehq.com/d/ca5be2da0eedd87c">Observable Example Code</a> and Calendar code: <a href="https://jsuites.net/docs/javascript-calendar">Jsuites Calendar</a>
+    </p>
+  </div>
+
+
+</div>
+<!--<div id="chart-container"></div>-->
+<script>
+
+  const options = ['All','CSCO', 'BA', 'V', 'WBA', 'UTX', 'MRK', 'PG', 'CAT', 'MCD', 'INTC', 'MMM', 'KO', 'MSFT', 'HD', 'AXP', 'XOM', 'CVX', 'NKE', 'IBM', 'GS', 'DIS', 'JPM', 'PFE', 'VZ', 'UNH', 'AAPL', 'WMT', 'TRV', 'JNJ'];
+  var sectors = ['All','Consumer Staples', 'Consumer Discretionary', 'Information Technology', 'Healthcare', 'Industrials', 'Financials', 'Energy', 'Telecommunication Services']
+
+  var date = '2014-02-25'
+  var filter = "All"
+  var sourceSector = "All"
+  var destinationSector = "All"
+
+  var calendar = jSuites.calendar(document.getElementById('calendar'),{
+    format: 'YYYY-MMM-DD',
+    validRange: ['2014-02-25', '2019-02-20'],
+    onclose: function(el, value) {
+      var rawDate = calendar.options.value
+      date = rawDate.slice(0, 10);
+      loadDataAndDrawChart(filter, date, sourceSector, destinationSector)
+    },
+    // startingDay: "2014-02-25"
+
+
+  });
+  calendar.setValue(date)
+
+  const dropdown = d3.select("#dropdown")
+    .selectAll('myOptions')
+    .data(options)
+    .enter()
+    .append("option")
+    .text(function (d) { return d; }) // text showed in the menu
+  // .on("change", updateLinks)
+
+  const dropdown1 = d3.select("#dropdown1")
+    .selectAll('myOptions')
+    .data(sectors)
+    .enter()
+    .append("option")
+    .text(function (d) { return d; }) // text showed in the menu
+  // .on("change", updateLinks)
+
+  const dropdown2 = d3.select("#dropdown2")
+    .selectAll('myOptions')
+    .data(sectors)
+    .enter()
+    .append("option")
+    .text(function (d) { return d; }) // text showed in the menu
+    // .on("change", updateLinks)
+
+
+
+  function linkFilter(linkMap){
+    return linkMap["source"] === filter;
+  }
+
+  function sourceSectorFilter(linkMap){
+    const sectorComps = data['nodes'].filter(node=>sectors[node['group']-1]===sourceSector);
+    var eligibleComps = []
+    sectorComps.forEach(function (sec) {
+      eligibleComps.push(sec['id'])
+    })
+    return eligibleComps.includes(linkMap["source"])
+
+  }
+
+  function destinationSectorFilter(linkMap){
+    const sectorComps = data['nodes'].filter(node=>sectors[node['group']-1]===destinationSector);
+    var eligibleComps = []
+    sectorComps.forEach(function (sec) {
+      eligibleComps.push(sec['id'])
+    })
+    return eligibleComps.includes(linkMap["target"])
+  }
+
+  d3.select("#dropdown").on("change", function(d) {
+    // recover the option that has been chosen
+    var selectedOption = d3.select(this).property("value")
+    filter = selectedOption
+    loadDataAndDrawChart(filter, date, sourceSector, destinationSector)
+
+  })
+
+  d3.select("#dropdown1").on("change", function(d) {
+    // recover the option that has been chosen
+    var selectedOption = d3.select(this).property("value")
+    sourceSector = selectedOption
+    loadDataAndDrawChart(filter, date, sourceSector, destinationSector)
+
+  })
+
+  d3.select("#dropdown2").on("change", function(d) {
+    // recover the option that has been chosen
+    var selectedOption = d3.select(this).property("value")
+    destinationSector = selectedOption
+    loadDataAndDrawChart(filter, date,sourceSector,destinationSector)
+
+  })
+
+
+
+  function closePopupTab() {
+    const popupTab = document.querySelector(".popup-tab");
+    if (popupTab) {
+      popupTab.remove();
+    }
+  }
+
+  // Your chart function goes here...
+  const chart = async (data) => {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    // Specify the color scale.
+    const color = d3.scaleOrdinal(d3.schemeCategory10)
+      .domain(["Finance", "Information Technology", "Healthcare", "Consumer Discretionary", "Energy", "Consumer Staples", "Industrials", "Telecommunication Services"])
+      .range(["#4b347f",
+        "#a26f2d",
+        "#5c76d5",
+        "#6a822d",
+        "#9b6bc5",
+        "#3d8854",
+        "#5486ba",
+        "#ba4b48"])
+
+    // The force simulation mutates links and nodes, so create a copy
+    // so that re-evaluating this cell produces the same result.
+    const links = data.links.map(d => ({...d}));
+    const nodes = data.nodes.map(d => ({...d}));
+
+    // Create a simulation with several forces.
+    const simulation = d3.forceSimulation(nodes)
+      .force("link", d3.forceLink(links).id(d => d.id).distance(100))
+      .force("charge", d3.forceManyBody().strength(-2500))
+      .force("center", d3.forceCenter(width / 2, height / 2))
+      .on("tick", ticked)
+    ;
+
+    // Create the SVG container.
+    const svg = d3.create("svg")
+      .attr("width", width)
+      .attr("height", height)
+      .attr("viewBox", [0, 0, width, height])
+      .attr("style", "max-width: 100%; height: auto;");
+
+
+    // Add a line for each link, and a circle for each node.
+    const link = svg.append("g")
+      .attr("stroke", "#999")
+      .attr("stroke-opacity", 0)
+      .selectAll()
+      .data(links)
+      .join("line")
+      .attr("stroke-width", d => Math.sqrt(d.value))
+      .on("click", function(event, d) {
+        // When clicked, open a popup tab
+        const popupTab = document.createElement("div");
+        popupTab.className = "popup-tab";
+        popupTab.innerHTML = `
+      <div class="popup-content">
+        <span class="popup-close" onclick="closePopupTab()">&times;</span>
+        <p>Source: ${d.source.id}</p>
+        <p>Destination: ${d.target.id}</p>
+         <p>Value: ${d.value}</p>
+      </div>
+    `;
+        document.body.appendChild(popupTab);
+      });
+
+
+
+    link.transition()
+      .delay((d, i) => i * 1) // Optional delay for each link
+      .duration(10) // Animation duration
+      .attr("stroke-opacity", 0.6);
+
+
+
+    const node = svg.append("g")
+      .attr("stroke", "#fff")
+      .attr("stroke-width", 1.5)
+      .selectAll()
+      .data(nodes)
+      .join("circle")
+      .attr("r", 5)
+      .attr("fill", d => color(d.group));
+
+    node.append("title")
+      .text(d => d.id);
+
+    node.on("mouseover", function(event, d) {
+      // Show tooltip when hovering over a node
+      const tooltip = d3.select("#chart-container")
+        .append("div")
+        .attr("class", "tooltip")
+        .style("position", "absolute")
+        .style("z-index", "10")
+        .style("visibility", "visible")
+        .style("background-color", "#fff")
+        .style("border", "1px solid #aaa")
+        .style("border-radius", "5px")
+        .style("padding", "10px")
+        .html(`<strong>Ticker:</strong> ${d.id}<br><strong>Sector:</strong> ${sectors[d.group-1]}`);
+
+      // Position tooltip relative to mouse pointer
+      tooltip.style("left", (event.pageX + 10) + "px")
+        .style("top", (event.pageY - 20) + "px");
+    })
+      .on("mouseout", function() {
+        // Hide tooltip when mouse leaves the node
+        d3.select(".tooltip").remove();
+      });
+
+    // Add a drag behavior.
+    node.call(d3.drag()
+      .on("start", dragstarted)
+      .on("drag", dragged)
+      .on("end", dragended));
+
+    // Set the position attributes of links and nodes each time the simulation ticks.
+    function ticked() {
+      link
+        .attr("x1", d => d.source.x)
+        .attr("y1", d => d.source.y)
+        .attr("x2", d => d.target.x)
+        .attr("y2", d => d.target.y);
+
+      node
+        .attr("cx", d => d.x)
+        .attr("cy", d => d.y);
+    }
+
+    // Reheat the simulation when drag starts, and fix the subject position.
+    function dragstarted(event) {
+      if (!event.active) simulation.alphaTarget(0.3).restart();
+      event.subject.fx = event.subject.x;
+      event.subject.fy = event.subject.y;
+    }
+
+    // Update the subject (dragged node) position during drag.
+    function dragged(event) {
+      event.subject.fx = event.x;
+      event.subject.fy = event.y;
+    }
+
+    // Restore the target alpha so the simulation cools after dragging ends.
+    // Unfix the subject position now that it’s no longer being dragged.
+    function dragended(event) {
+      if (!event.active) simulation.alphaTarget(0);
+      event.subject.fx = null;
+      event.subject.fy = null;
+    }
+
+    const graphGroup = svg.append("g");
+
+// Create a zoom behavior
+    const zoom = d3.zoom()
+      .scaleExtent([0.000001, 100]) // Set the min and max zoom scale
+      .on("zoom", zoomed); // Specify the zoom event handler
+
+// Add the zoom behavior to the graph group
+    graphGroup.call(zoom);
+
+// Define the zoom event handler function
+    function zoomed(event) {
+      // Get the current transform
+      const { transform } = event;
+
+      // Apply the transform to the graph group
+      graphGroup.attr("transform", transform);
+    }
+
+    return svg.node();
+
+  }
+
+  var sectors = ['Consumer Staples', 'Consumer Discretionary', 'Information Technology', 'Healthcare', 'Industrials', 'Financials', 'Energy', 'Telecommunication Services']
+
+  var data = {
+    nodes: [],
+    links:[
+
+    ]
+
+  };
+
+  async function loadLinksFromFile(filePath) {
+    try {
+      const response = await fetch(filePath);
+      if (!response.ok) {
+        throw new Error('Failed to load links from JSON file');
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Error loading links from JSON file:', error);
+      throw error;
+    }
+  }
+
+
+  const securities = ['CSCO', 'BA', 'V', 'WBA', 'UTX', 'MRK', 'PG', 'CAT', 'MCD', 'INTC', 'MMM', 'KO', 'MSFT', 'HD', 'AXP', 'XOM', 'CVX', 'NKE', 'IBM', 'GS', 'DIS', 'JPM', 'PFE', 'VZ', 'UNH', 'AAPL', 'WMT', 'TRV', 'JNJ'];
+
+  async function loadDataAndDrawChart(filter, date, sourceSector, destSector) {
+
+    data.nodes = [
+      {'id': 'CSCO', 'group': 3},
+      {'id': 'BA', 'group': 2},
+      {'id': 'V', 'group': 3},
+      {'id': 'WBA', 'group': 2},
+      {'id': 'UTX', 'group': 5},
+      {'id': 'MRK', 'group': 4},
+      {'id': 'PG', 'group': 1},
+      {'id': 'CAT', 'group':5},
+      {'id': 'MCD', 'group': 1},
+      {'id': 'INTC', 'group': 3},
+      {'id': 'MMM', 'group': 5},
+      {'id': 'KO', 'group': 1},
+      {'id': 'MSFT', 'group': 3},
+      {'id': 'HD', 'group': 2},
+      {'id': 'AXP', 'group': 6},
+      {'id': 'XOM', 'group': 7},
+      {'id': 'CVX', 'group': 7},
+      {'id': 'NKE', 'group': 2},
+      {'id': 'IBM', 'group': 3},
+      {'id': 'GS', 'group': 6},
+      {'id': 'DIS', 'group': 2},
+      {'id': 'JPM', 'group': 6},
+      {'id': 'PFE', 'group': 4},
+      {'id': 'VZ', 'group': 8},
+      {'id': 'UNH', 'group': 4},
+      {'id': 'AAPL', 'group': 3},
+      {'id': 'WMT', 'group': 1},
+      {'id': 'TRV', 'group': 6},
+      {'id': 'JNJ', 'group': 4},
+      // Add more nodes as needed
+    ]
+
+
+    console.log('new load')
+    try {
+      let buff = [];
+      for (const sec of securities) {
+        const filepath = `norm-json/${sec}.json`;
+        const linksData = await loadLinksFromFile(filepath);
+
+        for (const key in linksData[date]) {
+          if (key !== "date") {
+            const linkMap = {"source": sec, "target": key, "value": linksData[date][key]};
+            buff.push(linkMap);
+          }
+        }
+      }
+
+      var nodesToShow = new Set()
+
+      console.log(filter, date, sourceSector, destSector)
+
+      var nodesBuff = data.nodes
+      data.links = buff;
+      if (securities.includes(filter)) {
+        data.links = data.links.filter(linkFilter)
+      }
+      if(sourceSector && sourceSector!=='All'){
+        data.links = data.links.filter(sourceSectorFilter)
+      }
+      if (destSector && destSector!=='All'){
+        data.links = data.links.filter(destinationSectorFilter)
+        for(var link of data.links){
+          nodesToShow.add(link.source)
+          nodesToShow.add(link.target)
+        }
+        console.log(nodesToShow)
+        data.nodes = data.nodes.filter(nodes => nodesToShow.has(nodes['id']))
+      }
+      else{
+        data.links = buff
+        data.nodes = nodesBuff
+      }
+      console.log(data.nodes)
+
+
+
+
+
+      // console.log(result)
+
+
+      // Call the chart function with the updated data
+      const chartSvg = chart(data);
+
+      const existingContent = document.getElementById("chart-container").firstChild;
+      if (existingContent) {
+        await document.getElementById("chart-container").replaceChild(await chartSvg, existingContent);
+      } else {
+        await document.getElementById("chart-container").appendChild(await chartSvg); // Handle empty container case
+      }
+      // await document.getElementById("chart-container").replaceChild(await chartSvg, existingContent);
+      // console.log(document.getElementById("chart-container").children)
+    } catch (error) {
+      // Handle error
+    }
+  }
+
+  // async function animateLinkWeights(weightsList) {
+  //   try {
+  //     // Select all existing links
+  //     const link = d3.selectAll("line")
+  //       .data(data.links);
+  //
+  //     // Animate the changes in link weights
+  //     link.transition()
+  //       .duration(1000) // Duration of the animation in milliseconds
+  //       .attrTween("stroke-width", function(d, i) {
+  //         const startWeight = d.value; // Starting weight for the link
+  //         const endWeights = weightsList; // Use the same list of weights for all links
+  //
+  //         // Generate the interpolator function
+  //         const interpolate = d3.interpolateNumber(startWeight, endWeights[endWeights.length - 1]);
+  //
+  //         return function(t) {
+  //           const index = Math.min(Math.floor(t * (endWeights.length - 1)), endWeights.length - 1);
+  //           return Math.sqrt(interpolate(endWeights[index])); // Calculate the interpolated weight
+  //         };
+  //       })
+  //       .on("end", function(d, i) {
+  //         d.value = weightsList[weightsList.length - 1]; // Update the link value with the final weight after the animation
+  //       });
+  //
+  //     console.log('done');
+  //   } catch (error) {
+  //     console.error('Error animating link weights:', error);
+  //   }
+  // }
+
+  // function animateLinkWeights(newWeights) {
+  //
+  //   const link = d3.selectAll("line").data(data.links);
+  //   data.links.forEach((linkData, index) => {
+  //     linkData.weight = newWeights[index];
+  //   });
+  //
+  //   // Transition for link width change
+  //   link = link.transition()
+  //     .duration(1000)  // Adjust duration as needed (in milliseconds)
+  //     .attr("stroke-width", d => Math.sqrt(d.weight));
+  // }
+  //
+  // document.getElementById("animateButton").addEventListener("click", async function() {
+  //   console.log("animating");
+  //   await animateLinkWeights([1,2,3,45,10,20]); // Pass the list of weights to animate all links
+  // });
+
+
+  loadDataAndDrawChart(filter, date, sourceSector, destinationSector);
+
+</script>
+</body>
+</html>

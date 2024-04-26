@@ -1,0 +1,29 @@
+.popup-tab {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #f9f9f9;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  padding: 20px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+}
+
+.popup-content {
+  position: relative;
+}
+
+.popup-close {
+  position: absolute;
+  top: -30px;
+  left: -10px;
+  cursor: pointer;
+  color: #888;
+  font-size: 20px;
+}
+
+.popup-close:hover {
+  color: #555;
+}
