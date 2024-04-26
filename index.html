@@ -9,7 +9,11 @@
   <link rel="stylesheet" href="dropdownContainer.css">
   <script src="https://jsuites.net/v4/jsuites.js"></script>
   <link rel="stylesheet" href="https://jsuites.net/v4/jsuites.css" type="text/css" />
-
+  <style>
+    table, th, td {
+      border: 1px solid black;
+    }
+  </style>
 
 </head>
 <body>
@@ -18,10 +22,6 @@
   <select id="dropdown" name="dropdown"></select>
 
   <input id='calendar' />
-
-  <button id="animateButton">Animate</button>
-
-
 
   <select id="dropdown1" name="dropdown1">
   </select>
@@ -32,6 +32,67 @@
 
   <!-- Container for the chart -->
   <div id="chart-container"></div>
+
+
+  <table>
+    <tr>
+      <th>Industry</th>
+      <th>Companies</th>
+    </tr>
+    <tr>
+      <td>Consumer Staples</td>
+      <td>PG (Procter & Gamble)
+        KO (Coca-Cola)
+        WMT (Walmart)
+        MCD (McDonald's)</td>
+    </tr>
+    <tr>
+      <td>Consumer Discretionary</td>
+      <td>DIS (Walt Disney)
+        NKE (Nike)
+        HD (Home Depot)
+        WBA (Walgreens Boots Alliance)</td>
+    </tr>
+    <tr>
+      <td>Information Technology</td>
+      <td>AAPL (Apple)
+        MSFT (Microsoft)
+        INTC (Intel)
+        IBM (International Business Machines)
+        CSCO (Cisco Systems)</td>
+    </tr>
+    <tr>
+      <td>Healthcare</td>
+      <td>MRK (Merck & Co.)
+        PFE (Pfizer)
+        JNJ (Johnson & Johnson)
+        UNH (UnitedHealth Group)</td>
+    </tr>
+    <tr>
+      <td>Industrials</td>
+      <td>CAT (Caterpillar Inc.)
+        UTX (United Technologies Corporation)
+        MMM (3M Company)</td>
+    </tr>
+    <tr>
+      <td>Financials</td>
+      <td>JPM (JPMorgan Chase)
+        GS (Goldman Sachs)
+        AXP (American Express)
+        TRV (The Travelers Companies Inc.)</td>
+    </tr>
+    <tr>
+      <td>Energy</td>
+      <td>XOM (Exxon Mobil)
+        CVX (Chevron)</td>
+    </tr>
+    <tr>
+      <td>Telecommunication Services</td>
+      <td>VZ (Verizon)</td>
+    </tr>
+  </table>
+
+
 
   <div id="data-process">
     <h3>Data Processing:</h3>
